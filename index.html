@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TravelShield Intel v4 — Plataforma Corporativa de Seguridad Global</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f4;
+    --bg-tertiary: #eeece8;
+    --text-primary: #1a1a1a;
+    --text-secondary: #6b7280;
+    --text-tertiary: #9ca3af;
+    --border: rgba(0,0,0,0.12);
+    --border-md: rgba(0,0,0,0.2);
+    --radius: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg-tertiary); color: var(--text-primary); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── TABS PRINCIPALES ── */
+  #main-tabs { display: flex; gap: 0; border-bottom: 0.5px solid var(--border); background: var(--bg-primary); flex-shrink: 0; padding: 0 12px; }
+  .mtab { font-size: 12px; padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none; color: var(--text-secondary); font-family: var(--font); }
+  .mtab.on { color: var(--text-primary); border-bottom-color: #1a1a1a; font-weight: 500; }
+  .mtab-badge { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 8px; margin-left: 4px; background: #fcebeb; color: #791f1f; }
+
+  /* ── PANEL MAPA ── */
+  #panel-map { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  #topbar { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 0.5px solid var(--border); background: var(--bg-primary); flex-shrink: 0; flex-wrap: wrap; }
+  #brand { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+  .live { width: 7px; height: 7px; border-radius: 50%; background: #e24b4a; animation: blink 1.4s infinite; }
+  @keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+  .pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 0.5px solid; }
+  .pill-r { background: #fcebeb; color: #791f1f; border-color: #f09595; }
+  .pill-a { background: #faeeda; color: #633806; border-color: #fac775; }
+  .pill-g { background: #eaf3de; color: #3b6d11; border-color: #c0dd97; }
+  #layers { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .lbtn { font-size: 10px; padding: 3px 8px; border: 0.5px solid var(--border-md); border-radius: 10px; cursor: pointer; background: transparent; color: var(--text-secondary); font-family: var(--font); }
+  .lbtn.on { background: var(--text-primary); color: #fff; border-color: var(--text-primary); }
+  #crumb { font-size: 11px; color: var(--text-tertiary); padding: 4px 12px; border-bottom: 0.5px solid var(--border); flex-shrink: 0; display: none; background: var(--bg-secondary); }
+  #crumb.show { display: flex; align-items: center; gap: 5px; }
+  .crumb-link { cursor: pointer; color: #185fa5; text-decoration: none; }
+  .crumb-link:hover { text-decoration: underline; }
+  .crumb-cur { color: var(--text-primary); font-weight: 500; }
+  #map-body { display: flex; flex: 1; overflow: hidden; }
+  #sb { width: 220px; flex-shrink: 0; border-right: 0.5px solid var(--border); display: flex; flex-direction: column; overflow: hidden; background: var(--bg-primary); }
+  #sb-search { padding: 6px 8px; border-bottom: 0.5px solid var(--border); flex-shrink: 0; position: relative; }
+  #sb-search input { width: 100%; padding: 5px 8px; border: 0.5px solid var(--border-md); border-radius: 6px; font-size: 11px; background: var(--bg-secondary); color: var(--text-primary); outline: none; font-family: var(--font); }
+  #sr { position: absolute; top: 36px; left: 8px; right: 8px; background: var(--bg-primary); border: 0.5px solid var(--border-md); border-radius: 8px; z-index: 99; max-height: 200px; overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+  .sri { padding: 6px 10px; cursor: pointer; font-size: 11px; color: var(--text-primary); }
+  .sri:hover { background: var(--bg-secondary); }
+  .stabs { display: flex; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+  .stab { flex: 1; font-size: 10px; padding: 6px 2px; cursor: pointer; text-align: center; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-family: var(--font); }
+  .stab.on { color: var(--text-primary); border-bottom-color: var(--text-primary); font-weight: 500; }
+  #sb-body { flex: 1; overflow-y: auto; padding: 8px; }
+  .sl { font-size: 9px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; margin: 8px 0 4px; }
+  .acard { padding: 7px; border-radius: 6px; border: 0.5px solid var(--border); margin-bottom: 4px; cursor: pointer; transition: border-color .1s; }
+  .acard:hover { border-color: var(--border-md); background: var(--bg-secondary); }
+  .ah { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; }
+  .ab { font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 8px; }
+  .ab-war { background: #501313; color: #f7c1c1; }
+  .ab-crit { background: #fcebeb; color: #791f1f; }
+  .ab-high { background: #faeeda; color: #633806; }
+  .ab-med { background: #eaf3de; color: #3b6d11; }
+  .ac { font-size: 11px; font-weight: 500; color: var(--text-primary); }
+  .at { font-size: 10px; color: var(--text-secondary); line-height: 1.4; }
+  .ats { font-size: 9px; color: var(--text-tertiary); margin-top: 1px; }
+  .erow { display: flex; align-items: center; gap: 7px; padding: 6px 0; border-bottom: 0.5px solid var(--border); cursor: pointer; }
+  .erow:hover { background: var(--bg-secondary); padding-left: 4px; border-radius: 4px; }
+  .eav { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+  .ei { flex: 1; min-width: 0; }
+  .en { font-size: 11px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .el { font-size: 10px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .est { font-size: 9px; margin-top: 1px; }
+  .sos-btn { display: block; width: 100%; padding: 8px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; text-align: center; margin-bottom: 6px; border: 0.5px solid; font-family: var(--font); }
+  .sos-red { background: #fcebeb; color: #791f1f; border-color: #f09595; }
+  .sos-blue { background: #e6f1fb; color: #185fa5; border-color: #85b7eb; }
+  .sos-h { font-size: 11px; font-weight: 600; color: var(--text-primary); margin: 10px 0 3px; }
+  .sos-row { font-size: 10px; color: var(--text-secondary); padding: 2px 0; line-height: 1.6; }
+  #mwrap { flex: 1; position: relative; overflow: hidden; background: var(--bg-secondary); }
+  #tt { position: absolute; background: var(--bg-primary); border: 0.5px solid var(--border-md); border-radius: 8px; padding: 8px 11px; font-size: 11px; pointer-events: none; display: none; z-index: 40; max-width: 210px; line-height: 1.5; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+  .tth { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+  .ttr { display: flex; justify-content: space-between; gap: 10px; color: var(--text-secondary); font-size: 10px; }
+  .ttv { font-weight: 500; color: var(--text-primary); }
+  #dp { width: 220px; flex-shrink: 0; border-left: 0.5px solid var(--border); overflow-y: auto; padding: 10px; display: none; background: var(--bg-primary); }
+  #dp.open { display: block; }
+  .dp-close { float: right; background: none; border: none; cursor: pointer; color: var(--text-tertiary); font-size: 16px; line-height: 1; padding: 0 2px; }
+  .dp-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+  .dp-sub { font-size: 10px; color: var(--text-secondary); margin-bottom: 8px; }
+  .sbar { margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .sbar-l { font-size: 10px; color: var(--text-secondary); width: 72px; flex-shrink: 0; }
+  .sbar-bg { flex: 1; height: 4px; background: var(--bg-secondary); border-radius: 2px; }
+  .sbar-f { height: 4px; border-radius: 2px; }
+  .sbar-v { font-size: 10px; font-weight: 500; color: var(--text-primary); width: 16px; text-align: right; }
+  .dpsec { margin-top: 10px; padding-top: 8px; border-top: 0.5px solid var(--border); }
+  .dpsl { font-size: 9px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+  .dpl { font-size: 10px; color: var(--text-primary); padding: 2px 0; line-height: 1.5; }
+  .tag { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 8px; margin: 2px 2px 2px 0; font-weight: 600; }
+  .tw { background: #501313; color: #f7c1c1; }
+  .tc { background: #fcebeb; color: #791f1f; }
+  .th { background: #faeeda; color: #633806; }
+  .tm { background: #faeeda; color: #412402; }
+  .tl { background: #eaf3de; color: #3b6d11; }
+  .ts { background: #eaf3de; color: #085041; }
+  .city-chip { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 10px; background: var(--bg-secondary); border: 0.5px solid var(--border-md); color: var(--text-secondary); cursor: pointer; margin: 2px; }
+  .city-chip:hover { border-color: #1a1a1a; color: var(--text-primary); }
+  #bot { display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-top: 0.5px solid var(--border); font-size: 9px; color: var(--text-tertiary); flex-shrink: 0; flex-wrap: wrap; background: var(--bg-secondary); }
+  .leg { display: flex; align-items: center; gap: 3px; }
+  .ls { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  /* ── PANEL VIAJE ── */
+  #panel-travel { display: none; flex: 1; overflow-y: auto; padding: 24px; background: var(--bg-tertiary); }
+  #panel-travel.show { display: block; }
+  .travel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 900px; margin: 0 auto; }
+  .tcard { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+  .tcard-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .tcard-icon { width: 18px; height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+  label { display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 3px; margin-top: 8px; }
+  label:first-of-type { margin-top: 0; }
+  input[type=text], input[type=date], input[type=email], select, textarea {
+    width: 100%; padding: 7px 9px; border: 0.5px solid var(--border-md); border-radius: 6px;
+    font-size: 12px; font-family: var(--font); color: var(--text-primary); background: var(--bg-secondary); outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #185fa5; background: #fff; }
+  .risk-select { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .risk-opt { padding: 6px 8px; border: 0.5px solid var(--border-md); border-radius: 6px; cursor: pointer; font-size: 10px; text-align: center; }
+  .risk-opt.sel { border-color: #185fa5; background: #e6f1fb; color: #185fa5; font-weight: 500; }
+  .submit-btn { width: 100%; padding: 10px; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font); margin-top: 12px; }
+  .submit-btn:hover { background: #333; }
+  .briefing-box { display: none; margin-top: 16px; padding: 14px; border: 0.5px solid var(--border); border-radius: 8px; background: var(--bg-primary); }
+  .briefing-box.show { display: block; }
+  .briefing-header { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .briefing-section { margin-bottom: 10px; }
+  .briefing-section h4 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-tertiary); margin-bottom: 4px; }
+  .briefing-section p, .briefing-section li { font-size: 11px; color: var(--text-primary); line-height: 1.6; }
+  .briefing-section ul { padding-left: 14px; }
+  .checkin-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 0.5px solid var(--border); }
+  .checkin-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .checkin-info { flex: 1; font-size: 11px; color: var(--text-primary); }
+  .checkin-time { font-size: 10px; color: var(--text-tertiary); }
+  .export-btn { padding: 6px 12px; border: 0.5px solid var(--border-md); border-radius: 6px; font-size: 11px; cursor: pointer; background: var(--bg-secondary); color: var(--text-secondary); font-family: var(--font); }
+  .export-btn:hover { background: var(--text-primary); color: #fff; }
+  .full-col { grid-column: 1 / -1; }
+  .status-indicator { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 20px; }
+  .si-safe { background: #eaf3de; color: #3b6d11; }
+  .si-warn { background: #faeeda; color: #633806; }
+  .si-danger { background: #fcebeb; color: #791f1f; }
+  .emp-tracker { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+  .emp-card { padding: 10px; border: 0.5px solid var(--border); border-radius: 8px; background: var(--bg-primary); }
+  .emp-card-name { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+  .emp-card-loc { font-size: 10px; color: var(--text-secondary); margin: 2px 0; }
+  .emp-card-status { font-size: 10px; margin-top: 4px; }
+  .checkin-btn { padding: 4px 10px; font-size: 10px; border: 0.5px solid; border-radius: 12px; cursor: pointer; font-family: var(--font); margin-top: 6px; width: 100%; }
+  .checkin-safe { background: #eaf3de; color: #3b6d11; border-color: #c0dd97; }
+  .checkin-sos { background: #fcebeb; color: #791f1f; border-color: #f09595; }
+  h2.section-title { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; max-width: 900px; margin-left: auto; margin-right: auto; }
+</style>
+</head>
+<body>
+
+<div id="main-tabs">
+  <button class="mtab on" data-mt="map">Mapa de riesgo global</button>
+  <button class="mtab" data-mt="travel">Registro de viaje <span class="mtab-badge">NUEVO</span></button>
+  <button class="mtab" data-mt="tracker">Tracker empleados</button>
+</div>
+
+<!-- ══════════ PANEL MAPA ══════════ -->
+<div id="panel-map">
+  <div id="topbar">
+    <div id="brand"><div class="live"></div>TravelShield Intel v4</div>
+    <span class="pill pill-r">12 zonas críticas</span>
+    <span class="pill pill-a">31 en precaución</span>
+    <span class="pill pill-g">8 empleados en campo</span>
+    <div id="layers">
+      <button class="lbtn on" data-l="total">General</button>
+      <button class="lbtn" data-l="conflict">Conflicto</button>
+      <button class="lbtn" data-l="crime">Crimen</button>
+      <button class="lbtn" data-l="terror">Terror</button>
+      <button class="lbtn" data-l="humanitarian">Humanitaria</button>
+      <button class="lbtn" data-l="employees" style="color:#1d9e75;border-color:#1d9e75">Empleados</button>
+    </div>
+  </div>
+  <div id="crumb">
+    <span class="crumb-link" onclick="goWorld()">Mundo</span>
+    <span id="crumb-sep" style="color:#9ca3af;display:none">›</span>
+    <span class="crumb-cur" id="crumb-city" style="display:none"></span>
+  </div>
+  <div id="map-body">
+    <div id="sb">
+      <div id="sb-search">
+        <input id="sinput" placeholder="Buscar ciudad o país…" autocomplete="off">
+        <div id="sr"></div>
+      </div>
+      <div class="stabs">
+        <button class="stab on" data-st="alerts">Alertas</button>
+        <button class="stab" data-st="emp">Empleados</button>
+        <button class="stab" data-st="sos">SOS</button>
+      </div>
+      <div id="sb-body">
+        <div id="pnl-alerts">
+          <div class="sl">Guerra activa</div>
+          <div class="acard" onclick="openCity('teheran')"><div class="ah"><span class="ab ab-war">GUERRA</span><span class="ac">Teherán, Irán</span></div><div class="at">Strikes US/Israel activos. Infraestructura destruida.</div><div class="ats">16 abr 2026</div></div>
+          <div class="acard" onclick="openCity('kyiv')"><div class="ah"><span class="ab ab-war">GUERRA</span><span class="ac">Kiev, Ucrania</span></div><div class="at">Año 4. Misiles diarios. Mark Taylor aquí — EVACUAR.</div><div class="ats">16 abr 2026</div></div>
+          <div class="acard" onclick="openCity('khartoum')"><div class="ah"><span class="ab ab-war">GUERRA</span><span class="ac">Khartoum, Sudán</span></div><div class="at">Ciudad destruida. 12M desplazados. No viajar.</div><div class="ats">16 abr 2026</div></div>
+          <div class="acard" onclick="openCity('goma')"><div class="ah"><span class="ab ab-war">GUERRA</span><span class="ac">Goma, RDC</span></div><div class="at">M23 controla. Brote meningococo activo.</div><div class="ats">15 abr 2026</div></div>
+          <div class="sl">Crítico</div>
+          <div class="acard" onclick="openCity('guadalajara')"><div class="ah"><span class="ab ab-crit">CRÍTICO</span><span class="ac">Guadalajara, MX</span></div><div class="at">CJNG fractura post-Mencho. FIFA junio. Código Rojo.</div><div class="ats">16 abr 2026</div></div>
+          <div class="acard" onclick="openCity('portauprince')"><div class="ah"><span class="ab ab-crit">CRÍTICO</span><span class="ac">Port-au-Prince</span></div><div class="at">Pandillas controlan 80%. Estado fallido.</div><div class="ats">16 abr 2026</div></div>
+          <div class="acard" onclick="openCity('caracas')"><div class="ah"><span class="ab ab-crit">CRÍTICO</span><span class="ac">Caracas, Venezuela</span></div><div class="at">Post-Maduro. Tren de Aragua activo.</div><div class="ats">16 abr 2026</div></div>
+          <div class="sl">Precaución</div>
+          <div class="acard" onclick="openCity('paris')"><div class="ah"><span class="ab ab-high">ALTO</span><span class="ac">París, Francia</span></div><div class="at">Carteristas en alza. Protestas anti-EEUU.</div><div class="ats">14 abr 2026</div></div>
+          <div class="acard" onclick="openCity('cdmx')"><div class="ah"><span class="ab ab-high">ALTO</span><span class="ac">Ciudad de México</span></div><div class="at">Ana García y Carlos Ruiz aquí. CJNG activo.</div><div class="ats">16 abr 2026</div></div>
+          <div class="acard" onclick="openCity('johannesburg')"><div class="ah"><span class="ab ab-high">ALTO</span><span class="ac">Johannesburgo</span></div><div class="at">CBD extremo. Carjacking. Alexandra: no viajar.</div><div class="ats">15 abr 2026</div></div>
+        </div>
+        <div id="pnl-emp" style="display:none">
+          <div class="sl">8 empleados en campo</div>
+          <div style="display:flex;gap:4px;margin-bottom:8px">
+            <button class="lbtn on" style="font-size:9px;padding:2px 6px" data-ef="all">Todos</button>
+            <button class="lbtn" style="font-size:9px;padding:2px 6px" data-ef="danger">Peligro</button>
+            <button class="lbtn" style="font-size:9px;padding:2px 6px" data-ef="warn">Alerta</button>
+            <button class="lbtn" style="font-size:9px;padding:2px 6px" data-ef="safe">Seguros</button>
+          </div>
+          <div id="emp-body"></div>
+        </div>
+        <div id="pnl-sos" style="display:none">
+          <button class="sos-btn sos-red" onclick="alert('Protocolo activado. En producción esto abriría el formulario de evacuación con datos del empleado.')">🚨 Protocolo evacuación</button>
+          <button class="sos-btn sos-blue" onclick="document.querySelector('.mtab[data-mt=travel]').click()">📋 Registrar viaje</button>
+          <div class="sos-h">Línea corporativa 24/7</div>
+          <div class="sos-row">+1 800 SHIELD-1</div>
+          <div class="sos-h">Evacuación médica</div>
+          <div class="sos-row">ISOS: +1 215 942 8226</div>
+          <div class="sos-row">Global Rescue: +1 617 459 4200</div>
+          <div class="sos-row">SkyMed: +1 800 475 9633</div>
+          <div class="sos-h">Embajadas clave</div>
+          <div class="sos-row">MX-EEUU: +52 55 5080 2000</div>
+          <div class="sos-row">MX-FR: +33 1 42 86 56 20</div>
+          <div class="sos-row">MX-UK: +44 20 7499 8586</div>
+          <div class="sos-row">MX-UAE: +971 2 414 2200</div>
+          <div class="sos-row">MX-KE: +254 20 363 6000</div>
+          <div class="sos-h">Salud internacional</div>
+          <div class="sos-row">CDC Traveler Health: cdc.gov/travel</div>
+          <div class="sos-row">ISOS: internationalsos.com</div>
+        </div>
+      </div>
+    </div>
+    <div id="mwrap">
+      <div id="tt"></div>
+      <svg id="wsvg" style="width:100%;height:100%;display:block"></svg>
+    </div>
+    <div id="dp"><div id="dp-content"></div></div>
+  </div>
+  <div id="bot">
+    <span class="leg"><span class="ls" style="background:#501313"></span>Zona guerra</span>
+    <span class="leg"><span class="ls" style="background:#791f1f"></span>Crítico</span>
+    <span class="leg"><span class="ls" style="background:#e24b4a"></span>Alto</span>
+    <span class="leg"><span class="ls" style="background:#ef9f27"></span>Elevado</span>
+    <span class="leg"><span class="ls" style="background:#c0dd97"></span>Bajo</span>
+    <span class="leg"><span class="ls" style="background:#1d9e75"></span>Estable</span>
+    <span style="margin-left:auto">Clic en país → ciudades · Clic en ciudad → barrios · Fuentes: ACLED · ICG · CFR · Al Jazeera · Reuters · Xinhua · 16 abr 2026</span>
+  </div>
+</div>
+
+<!-- ══════════ PANEL REGISTRO DE VIAJE ══════════ -->
+<div id="panel-travel">
+  <h2 class="section-title">Registro de viaje corporativo</h2>
+  <div class="travel-grid">
+    <div class="tcard">
+      <div class="tcard-title"><div class="tcard-icon" style="background:#e6f1fb;color:#185fa5">✈</div>Datos del viaje</div>
+      <label>Empleado</label>
+      <select id="tr-emp">
+        <option>Ana García</option><option>John Smith</option><option>Li Wei</option>
+        <option>Sara Ahmed</option><option>Mark Taylor</option><option>Priya Nair</option>
+        <option>Carlos Ruiz</option><option>Aisha Diop</option><option>— Otro —</option>
+      </select>
+      <label>Destino (ciudad)</label>
+      <input type="text" id="tr-dest" placeholder="ej. París, Dubai, Ciudad de México…">
+      <label>Fecha de salida</label>
+      <input type="date" id="tr-from">
+      <label>Fecha de regreso</label>
+      <input type="date" id="tr-to">
+      <label>Propósito del viaje</label>
+      <select id="tr-purpose">
+        <option>Reunión de negocios</option><option>Conferencia</option><option>Auditoría en campo</option>
+        <option>Proyecto a largo plazo</option><option>Visita a cliente</option><option>Otro</option>
+      </select>
+    </div>
+    <div class="tcard">
+      <div class="tcard-title"><div class="tcard-icon" style="background:#fcebeb;color:#791f1f">⚠</div>Perfil de riesgo personal</div>
+      <label>Nivel de experiencia en viajes internacionales</label>
+      <div class="risk-select" id="rs-exp">
+        <div class="risk-opt sel" data-v="alto">Alto — viajero frecuente</div>
+        <div class="risk-opt" data-v="medio">Medio — ocasional</div>
+        <div class="risk-opt" data-v="bajo">Bajo — primer viaje</div>
+        <div class="risk-opt" data-v="nuevo">Nuevo empleado</div>
+      </div>
+      <label style="margin-top:10px">Alojamiento confirmado</label>
+      <input type="text" id="tr-hotel" placeholder="Hotel o dirección">
+      <label>Contacto de emergencia local</label>
+      <input type="text" id="tr-contact" placeholder="Nombre y teléfono">
+      <label>Email para briefing</label>
+      <input type="email" id="tr-email" placeholder="email@empresa.com">
+    </div>
+    <div class="tcard full-col">
+      <div class="tcard-title"><div class="tcard-icon" style="background:#eaf3de;color:#3b6d11">✓</div>Check-in automático</div>
+      <p style="font-size:11px;color:#6b7280;margin-bottom:10px">El sistema enviará una alerta de check-in al empleado según el nivel de riesgo del destino. Si no responde en el tiempo definido, se activa el protocolo de búsqueda.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div>
+          <label>Zona estable — cada</label>
+          <select><option>72 horas</option><option>48 horas</option><option>24 horas</option></select>
+        </div>
+        <div>
+          <label>Zona de precaución — cada</label>
+          <select><option>24 horas</option><option>12 horas</option><option>6 horas</option></select>
+        </div>
+        <div>
+          <label>Zona crítica — cada</label>
+          <select><option>6 horas</option><option>3 horas</option><option>1 hora</option></select>
+        </div>
+      </div>
+      <button class="submit-btn" onclick="generateBriefing()">Generar briefing de seguridad y registrar viaje</button>
+    </div>
+    <div class="tcard full-col briefing-box" id="briefing-result">
+      <div class="briefing-header">
+        <span id="briefing-title">Briefing de seguridad generado</span>
+        <div style="display:flex;gap:6px">
+          <button class="export-btn" onclick="exportBriefingPDF()">Exportar PDF</button>
+          <button class="export-btn" onclick="alert('En producción: envía el briefing al email del empleado')">Enviar por email</button>
+        </div>
+      </div>
+      <div id="briefing-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PANEL TRACKER ══════════ -->
+<div id="panel-tracker" style="display:none;flex:1;overflow-y:auto;padding:24px;background:var(--bg-tertiary)">
+  <h2 class="section-title">Tracker de empleados en campo</h2>
+  <div style="max-width:900px;margin:0 auto">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <span class="status-indicator si-danger">● 1 en peligro</span>
+      <span class="status-indicator si-warn">● 4 en alerta</span>
+      <span class="status-indicator si-safe">● 3 seguros</span>
+      <button class="export-btn" style="margin-left:auto" onclick="alert('En producción: envía check-in request a todos los empleados')">Solicitar check-in general</button>
+    </div>
+    <div class="emp-tracker" id="emp-tracker-grid"></div>
+    <div style="margin-top:20px">
+      <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:10px">Historial de check-ins recientes</div>
+      <div id="checkin-history"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════ DATOS ═══════
+const CDATA = {
+  "4":{n:"Afganistán",t:9,cf:9,cr:8,te:9,hu:9,adv:"No viajar",cities:["kabul"]},
+  "76":{n:"Brasil",t:6,cf:4,cr:8,te:3,hu:3,adv:"Alta precaución",cities:["rio","saopaulobr"]},
+  "104":{n:"Myanmar",t:9,cf:9,cr:6,te:7,hu:9,adv:"No viajar",cities:[]},
+  "140":{n:"R. Centroafricana",t:8,cf:8,cr:7,te:6,hu:8,adv:"No viajar",cities:[]},
+  "156":{n:"China",t:3,cf:3,cr:2,te:2,hu:2,adv:"Precaución",cities:["beijing","shanghai"]},
+  "170":{n:"Colombia",t:6,cf:6,cr:8,te:5,hu:5,adv:"Alta precaución",cities:["bogota","medellin"]},
+  "180":{n:"Congo RDC",t:9,cf:9,cr:7,te:7,hu:9,adv:"No viajar",cities:["goma"]},
+  "218":{n:"Ecuador",t:7,cf:5,cr:8,te:4,hu:4,adv:"Alta precaución",cities:[]},
+  "231":{n:"Etiopía",t:7,cf:7,cr:5,te:5,hu:8,adv:"Reconsiderar",cities:[]},
+  "250":{n:"Francia",t:2,cf:1,cr:3,te:3,hu:1,adv:"Normal",cities:["paris"]},
+  "276":{n:"Alemania",t:1,cf:1,cr:2,te:2,hu:1,adv:"Normal",cities:["berlin"]},
+  "320":{n:"Guatemala",t:5,cf:4,cr:8,te:4,hu:4,adv:"Alta precaución",cities:[]},
+  "332":{n:"Haití",t:9,cf:8,cr:9,te:7,hu:9,adv:"No viajar",cities:["portauprince"]},
+  "340":{n:"Honduras",t:6,cf:4,cr:8,te:4,hu:5,adv:"No viajar/Zona",cities:[]},
+  "356":{n:"India",t:5,cf:5,cr:4,te:5,hu:4,adv:"Precaución",cities:["delhi","mumbai"]},
+  "360":{n:"Indonesia",t:3,cf:3,cr:3,te:3,hu:2,adv:"Normal",cities:["bali"]},
+  "364":{n:"Irán",t:10,cf:10,cr:4,te:9,hu:7,adv:"No viajar",cities:["teheran"]},
+  "368":{n:"Iraq",t:8,cf:7,cr:6,te:8,hu:7,adv:"No viajar",cities:["baghdad"]},
+  "376":{n:"Israel",t:9,cf:9,cr:3,te:9,hu:6,adv:"Reconsiderar",cities:["telaviv"]},
+  "392":{n:"Japón",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:["tokyo"]},
+  "400":{n:"Jordania",t:5,cf:5,cr:3,te:5,hu:4,adv:"Precaución",cities:[]},
+  "404":{n:"Kenia",t:5,cf:3,cr:7,te:5,hu:5,adv:"Precaución",cities:["nairobi"]},
+  "408":{n:"Corea Norte",t:5,cf:4,cr:3,te:4,hu:7,adv:"No viajar",cities:[]},
+  "410":{n:"Corea del Sur",t:2,cf:2,cr:2,te:2,hu:1,adv:"Normal",cities:["seoul"]},
+  "422":{n:"Líbano",t:8,cf:7,cr:5,te:7,hu:8,adv:"No viajar",cities:["beirut"]},
+  "434":{n:"Libia",t:7,cf:7,cr:7,te:6,hu:6,adv:"No viajar",cities:[]},
+  "484":{n:"México",t:6,cf:6,cr:9,te:6,hu:4,adv:"Alta precaución",cities:["cdmx","guadalajara","tijuana","cancun"]},
+  "504":{n:"Marruecos",t:3,cf:2,cr:3,te:3,hu:2,adv:"Precaución",cities:["marrakech"]},
+  "524":{n:"Nepal",t:2,cf:2,cr:3,te:2,hu:2,adv:"Precaución",cities:[]},
+  "554":{n:"Nueva Zelanda",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:[]},
+  "562":{n:"Níger",t:8,cf:7,cr:5,te:7,hu:7,adv:"No viajar",cities:[]},
+  "566":{n:"Nigeria",t:7,cf:7,cr:7,te:7,hu:7,adv:"Alta precaución",cities:["lagos","abuja"]},
+  "586":{n:"Pakistán",t:8,cf:7,cr:6,te:8,hu:6,adv:"No viajar",cities:["islamabad"]},
+  "616":{n:"Polonia",t:2,cf:2,cr:2,te:2,hu:1,adv:"Normal",cities:[]},
+  "643":{n:"Rusia",t:8,cf:8,cr:5,te:6,hu:5,adv:"No viajar",cities:["moscow"]},
+  "682":{n:"Arabia Saudita",t:4,cf:3,cr:2,te:4,hu:3,adv:"Precaución",cities:["riyadh"]},
+  "702":{n:"Singapur",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:["singapore"]},
+  "706":{n:"Somalia",t:10,cf:9,cr:8,te:9,hu:9,adv:"No viajar",cities:[]},
+  "710":{n:"Sudáfrica",t:6,cf:3,cr:9,te:3,hu:3,adv:"Alta precaución",cities:["johannesburg","capetown"]},
+  "724":{n:"España",t:1,cf:1,cr:2,te:2,hu:1,adv:"Normal",cities:["madrid","barcelona"]},
+  "728":{n:"Sudán del Sur",t:8,cf:8,cr:7,te:6,hu:9,adv:"No viajar",cities:[]},
+  "729":{n:"Sudán",t:10,cf:10,cr:7,te:8,hu:10,adv:"No viajar",cities:["khartoum"]},
+  "752":{n:"Suecia",t:1,cf:1,cr:2,te:2,hu:1,adv:"Normal",cities:[]},
+  "756":{n:"Suiza",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:["zurich"]},
+  "760":{n:"Siria",t:8,cf:7,cr:6,te:7,hu:8,adv:"No viajar",cities:[]},
+  "764":{n:"Tailandia",t:3,cf:3,cr:3,te:3,hu:2,adv:"Normal",cities:["bangkok"]},
+  "784":{n:"EAU",t:2,cf:2,cr:2,te:2,hu:2,adv:"Precaución",cities:["dubai"]},
+  "792":{n:"Turquía",t:5,cf:5,cr:3,te:5,hu:4,adv:"Precaución",cities:["istanbul"]},
+  "804":{n:"Ucrania",t:9,cf:10,cr:4,te:8,hu:8,adv:"No viajar",cities:["kyiv"]},
+  "826":{n:"Reino Unido",t:2,cf:1,cr:2,te:3,hu:1,adv:"Normal",cities:["london"]},
+  "840":{n:"EEUU",t:3,cf:2,cr:4,te:3,hu:2,adv:"Normal",cities:["nyc","chicago"]},
+  "858":{n:"Uruguay",t:1,cf:1,cr:2,te:1,hu:1,adv:"Normal",cities:[]},
+  "862":{n:"Venezuela",t:8,cf:5,cr:10,te:6,hu:7,adv:"No viajar",cities:["caracas"]},
+  "887":{n:"Yemen",t:9,cf:9,cr:6,te:8,hu:10,adv:"No viajar",cities:[]},
+  "36":{n:"Australia",t:1,cf:1,cr:2,te:1,hu:1,adv:"Normal",cities:["sydney"]},
+  "124":{n:"Canadá",t:1,cf:1,cr:2,te:1,hu:1,adv:"Normal",cities:["toronto","vancouver"]},
+  "32":{n:"Argentina",t:2,cf:1,cr:4,te:2,hu:2,adv:"Precaución",cities:["buenosaires"]},
+  "466":{n:"Malí",t:8,cf:8,cr:6,te:8,hu:7,adv:"No viajar",cities:[]},
+  "854":{n:"Burkina Faso",t:8,cf:8,cr:6,te:8,hu:8,adv:"No viajar",cities:[]},
+  "528":{n:"Países Bajos",t:1,cf:1,cr:2,te:2,hu:1,adv:"Normal",cities:["amsterdam"]},
+  "40":{n:"Austria",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:["vienna"]},
+  "620":{n:"Portugal",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:["lisbon"]},
+  "246":{n:"Finlandia",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:[]},
+  "578":{n:"Noruega",t:1,cf:1,cr:1,te:1,hu:1,adv:"Normal",cities:[]},
+  "50":{n:"Bangladesh",t:4,cf:3,cr:4,te:4,hu:3,adv:"Precaución",cities:[]},
+  "120":{n:"Camerún",t:6,cf:6,cr:5,te:5,hu:5,adv:"Reconsiderar",cities:[]},
+  "192":{n:"Cuba",t:3,cf:2,cr:3,te:2,hu:4,adv:"Precaución",cities:[]},
+};
+
+const CITIES_DB = {
+  teheran:{name:"Teherán",country:"Irán",countryId:"364",lat:35.69,lng:51.39,risk:10,badge:"GUERRA",color:"#501313",
+    districts:[{nm:"Centro/Gobierno",x:220,y:160,w:130,h:90,risk:10,type:"w",note:"Objetivo strikes US/Israel. Parlamento destruido.",threats:["Strikes aéreos activos","Infraestructura colapsada"]},{nm:"Norte residencial",x:200,y:80,w:140,h:90,risk:9,type:"c",note:"Barrios norte bajo riesgo misiles constante.",threats:["Misiles","Evacuación urgente"]},{nm:"Aeropuerto IKA",x:360,y:280,w:130,h:75,risk:10,type:"w",note:"Cerrado indefinidamente.",threats:["Cerrado","Zona militar"]},{nm:"Sur / Bandar Abbas",x:180,y:290,w:140,h:80,risk:10,type:"w",note:"Puerto estratégico. Ataques activos.",threats:["Puerto militar","Ataques navales"]}],
+    hospital:"No operativo",embajada:"Sin embajadas occidentales",aeropuerto:"IKA CERRADO",evacuacion:"Global Rescue +1 617 459 4200 — vuelo charter urgente"},
+  kyiv:{name:"Kiev",country:"Ucrania",countryId:"804",lat:50.45,lng:30.52,risk:9,badge:"GUERRA",color:"#791f1f",
+    districts:[{nm:"Maidan / Centro",x:220,y:180,w:130,h:85,risk:9,type:"c",note:"Sirenas cada noche. Mark Taylor último ubicado aquí.",threats:["Misiles balísticos","Drones Shahed"]},{nm:"Pechersk / Lavra",x:300,y:240,w:110,h:80,risk:9,type:"c",note:"Zona gubernamental + embajadas.",threats:["Edificios gobierno","Ataques precisos"]},{nm:"Obolon / Norte",x:170,y:80,w:120,h:80,risk:8,type:"c",note:"Norte de Kiev. Misiles frecuentes.",threats:["Misiles"]},{nm:"Boryspil Airport",x:380,y:270,w:130,h:70,risk:8,type:"c",note:"Solo vuelos humanitarios.",threats:["Vuelos limitados"]}],
+    hospital:"Okhmatdyt +380 44 234 1234",embajada:"Operaciones mínimas",aeropuerto:"Boryspil: solo humanitario",evacuacion:"Ruta terrestre vía Polonia. Embajada primero."},
+  khartoum:{name:"Khartoum",country:"Sudán",countryId:"729",lat:15.55,lng:32.53,risk:10,badge:"GUERRA",color:"#501313",
+    districts:[{nm:"TODA LA CIUDAD — ZONA DE GUERRA",x:80,y:70,w:400,h:310,risk:10,type:"w",note:"SAF vs RSF en cada barrio. 150,000+ muertos. Sin servicios básicos. No viajar.",threats:["Combate activo en calles","Sin servicios","Sin hospitales"]}],
+    hospital:"NINGUNO OPERATIVO",embajada:"Todas evacuadas",aeropuerto:"Destruido",evacuacion:"IMPOSIBLE sin apoyo militar. ICRC +41 22 734 6001"},
+  goma:{name:"Goma, RDC",country:"Congo RDC",countryId:"180",lat:-1.68,lng:29.22,risk:10,badge:"GUERRA",color:"#501313",
+    districts:[{nm:"Ciudad capturada M23",x:80,y:70,w:400,h:200,risk:10,type:"w",note:"M23 controla Goma desde ene 2026.",threats:["M23 control total","Sin gobierno"]},{nm:"Kongo Central — Meningococo",x:80,y:280,w:400,h:100,risk:9,type:"c",note:"Brote meningococo activo. Vacuna obligatoria.",threats:["Meningococo activo"]}],
+    hospital:"No operativo",embajada:"Evacuadas a Kinshasa",aeropuerto:"Cerrado",evacuacion:"Ruta: Bukavu → Rwanda (Kigali)."},
+  portauprince:{name:"Port-au-Prince",country:"Haití",countryId:"332",lat:18.54,lng:-72.34,risk:10,badge:"CRÍTICO",color:"#791f1f",
+    districts:[{nm:"Cité Soleil",x:130,y:80,w:140,h:100,risk:10,type:"w",note:"Pandilla G9 controla. Tiroteos diarios.",threats:["G9","Violencia extrema"]},{nm:"Martissant",x:160,y:300,w:140,h:90,risk:10,type:"w",note:"Corredor pandillas.",threats:["Pandillas","Secuestro"]},{nm:"Centro / Champ de Mars",x:230,y:180,w:130,h:90,risk:9,type:"c",note:"Pandillas dominan centro.",threats:["Estado fallido"]},{nm:"Pétionville",x:340,y:180,w:130,h:110,risk:7,type:"h",note:"Zona más segura relativa.",threats:["Secuestro exprés"]}],
+    hospital:"No funciona normalmente",embajada:"EEUU mínima presencia",aeropuerto:"Abierto con restricciones",evacuacion:"Solo vuelos charter."},
+  caracas:{name:"Caracas",country:"Venezuela",countryId:"862",lat:10.49,lng:-66.88,risk:9,badge:"CRÍTICO",color:"#791f1f",
+    districts:[{nm:"Petare",x:360,y:170,w:120,h:100,risk:10,type:"w",note:"Tren de Aragua / Cocolocos. NO VIAJAR.",threats:["Tren de Aragua","Violencia extrema"]},{nm:"23 de Enero",x:110,y:200,w:130,h:90,risk:10,type:"w",note:"Colectivos chavistas post-Maduro.",threats:["Colectivos armados"]},{nm:"Centro / El Silencio",x:200,y:240,w:130,h:90,risk:9,type:"c",note:"Extremadamente peligroso.",threats:["Asalto armado","Secuestro"]},{nm:"Chacao / Las Mercedes",x:270,y:170,w:110,h:80,risk:5,type:"m",note:"Zona más segura. Hoteles, empresas.",threats:["Carjacking"]},{nm:"Altamira",x:220,y:120,w:120,h:80,risk:5,type:"m",note:"Residencial clase alta.",threats:["Asaltos"]}],
+    hospital:"Clínica El Ávila +58 212 276 1111",embajada:"Sin embajada EEUU",aeropuerto:"Maiquetía: vuelos limitados",evacuacion:"Solo charter privado."},
+  paris:{name:"París",country:"Francia",countryId:"250",lat:48.86,lng:2.35,risk:3,badge:"BAJO",color:"#97c459",
+    districts:[{nm:"1°-4° Centro/Marais",x:240,y:190,w:110,h:80,risk:2,type:"s",note:"Seguro. Alta presencia policial.",threats:["Carteristas en museos"]},{nm:"5°-6° Latin Quarter",x:210,y:260,w:100,h:75,risk:2,type:"s",note:"Saint-Germain. Muy seguro.",threats:["Pickpockets"]},{nm:"7° Torre Eiffel",x:150,y:240,w:100,h:75,risk:3,type:"l",note:"Carteristas en grupos.",threats:["Carteristas","Estafadores"]},{nm:"8° Champs-Élysées",x:155,y:165,w:105,h:70,risk:3,type:"l",note:"Protestas anti-EEUU activas.",threats:["Carteristas","Protestas"]},{nm:"9°-10° Gare du Nord",x:265,y:115,w:115,h:72,risk:5,type:"m",note:"Carteristas agresivos.",threats:["Carteristas","Tráfico menor"]},{nm:"18° Barbès/Château Rouge",x:215,y:65,w:125,h:78,risk:6,type:"h",note:"Evitar de noche.",threats:["Tráfico drogas"]},{nm:"19° Stalingrad/Jaurès",x:340,y:75,w:110,h:73,risk:7,type:"h",note:"Min. Interior 2026: aumento violencia.",threats:["Drogas","Violencia nocturna"]},{nm:"Saint-Denis (suburbio)",x:245,y:10,w:130,h:60,risk:8,type:"c",note:"Mayor criminalidad Île-de-France.",threats:["Crimen organizado"]}],
+    hospital:"SAMU 15 | St-Louis +33 1 42 49 49 49",embajada:"MX: +33 1 42 86 56 20",aeropuerto:"CDG ok · Orly ok",evacuacion:"No necesario. Ciudad segura."},
+  cdmx:{name:"Ciudad de México",country:"México",countryId:"484",lat:19.43,lng:-99.13,risk:5,badge:"ALTO",color:"#e24b4a",
+    districts:[{nm:"Polanco / Lomas",x:110,y:140,w:120,h:85,risk:2,type:"s",note:"Zona corporativa premium. Seguridad 24h.",threats:["Mínimo"]},{nm:"Roma / Condesa",x:195,y:205,w:110,h:82,risk:2,type:"s",note:"Hub corporativo seguro.",threats:["Carteristas ocasionales"]},{nm:"Centro / Zócalo",x:255,y:225,w:110,h:75,risk:4,type:"m",note:"Precaución nocturna.",threats:["Carteristas","Noche precaución"]},{nm:"Coyoacán / Azteca",x:235,y:325,w:120,h:75,risk:3,type:"l",note:"Bajo crimen. FIFA 2026 aquí.",threats:["Multitudes FIFA"]},{nm:"Tepito / Guerrero",x:275,y:140,w:100,h:75,risk:9,type:"c",note:"CJNG presencia. NO VIAJAR.",threats:["CJNG","Secuestro exprés"]},{nm:"Ecatepec (norte)",x:335,y:75,w:120,h:65,risk:8,type:"c",note:"Municipio con más homicidios área metro.",threats:["Homicidios","Carteles"]}],
+    hospital:"Cruz Roja 800 290 0024 | ABC +52 55 5230 8000",embajada:"EEUU: +52 55 5080 2000",aeropuerto:"AIFA ok · AICM ok (Uber solo)",evacuacion:"No necesario zonas normales."},
+  guadalajara:{name:"Guadalajara",country:"México",countryId:"484",lat:20.67,lng:-103.35,risk:7,badge:"CRÍTICO",color:"#e24b4a",
+    districts:[{nm:"Zapopan / Estadio FIFA",x:95,y:145,w:130,h:85,risk:3,type:"l",note:"Sede FIFA 2026. Máxima seguridad.",threats:["Multitudes FIFA (junio)"]},{nm:"Colonia Americana",x:195,y:190,w:110,h:75,risk:3,type:"l",note:"Zona corporativa. Segura.",threats:["Mínimo"]},{nm:"Centro Histórico",x:245,y:210,w:110,h:75,risk:4,type:"m",note:"Precaución nocturna.",threats:["Carteristas"]},{nm:"Periferia CJNG",x:370,y:130,w:130,h:110,risk:9,type:"c",note:"CJNG fractura. Balaceras. NO VIAJAR.",threats:["CJNG fractura","Balaceras","Bloqueos"]}],
+    hospital:"Hospital Civil +52 33 3614 5501",embajada:"Consulado EEUU GDL: +52 33 3268 2100",aeropuerto:"Aeropuerto GDL operativo",evacuacion:"Pre-alerta. Confirmar ruta con seguridad."},
+  johannesburg:{name:"Johannesburgo",country:"Sudáfrica",countryId:"710",lat:-26.20,lng:28.04,risk:7,badge:"ALTO",color:"#e24b4a",
+    districts:[{nm:"Sandton / Hyde Park",x:220,y:110,w:130,h:85,risk:2,type:"s",note:"Hub corporativo. Hoteles 5★. Seguro.",threats:["Carjacking autopistas"]},{nm:"Rosebank / Parktown",x:170,y:170,w:115,h:78,risk:3,type:"l",note:"Residencial upscale.",threats:["Carjacking"]},{nm:"CBD / Centro",x:252,y:215,w:110,h:85,risk:9,type:"c",note:"Uno de los centros más peligrosos del mundo.",threats:["Asalto armado","Carjacking"]},{nm:"Alexandra Township",x:335,y:110,w:115,h:80,risk:10,type:"w",note:"Pandillas. Sin ley. NO VIAJAR.",threats:["Pandillas","Violencia extrema"]},{nm:"Soweto",x:130,y:310,w:140,h:85,risk:6,type:"h",note:"Vilakazi St ok de día.",threats:["Violencia nocturna"]}],
+    hospital:"Life Fourways +27 11 875 1000",embajada:"EEUU JHB: +27 11 290 3000",aeropuerto:"O.R. Tambo: Uber OBLIGATORIO",evacuacion:"No necesario zonas seguras."},
+  nairobi:{name:"Nairobi",country:"Kenia",countryId:"404",lat:-1.29,lng:36.82,risk:5,badge:"MEDIO",color:"#fac775",
+    districts:[{nm:"Westlands / Gigiri",x:145,y:145,w:135,h:82,risk:3,type:"l",note:"Embajadas y expatriados. Sara Ahmed y Aisha Diop aquí.",threats:["Terrorismo regional (bajo)"]},{nm:"CBD / Centro",x:258,y:212,w:110,h:82,risk:6,type:"h",note:"Crimen diurno. Carteristas.",threats:["Carteristas","Asaltos"]},{nm:"Eastleigh",x:358,y:170,w:115,h:82,risk:8,type:"c",note:"Células Al-Shabaab. No viajar sin escolta.",threats:["Al-Shabaab"]},{nm:"Kibera",x:195,y:293,w:125,h:83,risk:8,type:"c",note:"Slum más grande de África. No viajar.",threats:["Violencia"]},{nm:"Karen / Langata",x:135,y:293,w:112,h:83,risk:3,type:"l",note:"Residencial upscale. Safaris. Seguro.",threats:["Mínimo"]}],
+    hospital:"Nairobi Hospital +254 20 284 5000",embajada:"EEUU: +254 20 363 6000",aeropuerto:"JKIA: operativo y seguro",evacuacion:"No necesario zonas normales."},
+  dubai:{name:"Dubái",country:"EAU",countryId:"784",lat:25.20,lng:55.27,risk:3,badge:"BAJO",color:"#97c459",
+    districts:[{nm:"Downtown / Burj Khalifa",x:235,y:200,w:125,h:85,risk:2,type:"s",note:"Máxima seguridad. Cero tolerancia crimen.",threats:["Spillover Irán (regional)"]},{nm:"Dubai Marina",x:120,y:250,w:125,h:85,risk:2,type:"s",note:"Zona expat premium. Muy segura.",threats:["Mínimo"]},{nm:"DIFC / Business Bay",x:210,y:160,w:115,h:78,risk:2,type:"s",note:"Hub financiero. Muy seguro.",threats:["Tensión geopolítica regional"]},{nm:"Deira / Creek",x:295,y:120,w:125,h:80,risk:3,type:"l",note:"Zona antigua. Mercados. Segura.",threats:["Carteristas ocasionales"]}],
+    hospital:"Rashid +971 4 219 2000",embajada:"EEUU Abu Dabi: +971 2 414 2200",aeropuerto:"DXB operativo · monitorear Ormuz",evacuacion:"No necesario. Monitorear guerra Irán."},
+  london:{name:"Londres",country:"Reino Unido",countryId:"826",lat:51.51,lng:-0.13,risk:2,badge:"BAJO",color:"#1d9e75",
+    districts:[{nm:"City / Westminster",x:235,y:195,w:115,h:80,risk:2,type:"s",note:"Centro financiero. Muy seguro.",threats:["Terrorismo esporádico (bajo)"]},{nm:"Mayfair / Kensington",x:155,y:177,w:115,h:80,risk:1,type:"s",note:"Zona premium. Embajadas.",threats:["Mínimo"]},{nm:"Shoreditch / East",x:320,y:157,w:112,h:78,risk:3,type:"l",note:"Barrio tech.",threats:["Crimen menor nocturno"]},{nm:"Peckham / Brixton",x:265,y:305,w:125,h:82,risk:5,type:"m",note:"Sur de Londres. Knife crime nocturno.",threats:["Knife crime"]}],
+    hospital:"NHS 999 | King's College +44 20 3299 9000",embajada:"MX: +44 20 7499 8586",aeropuerto:"Heathrow/Gatwick ok · ETA requerida",evacuacion:"No necesario."},
+  singapore:{name:"Singapur",country:"Singapur",countryId:"702",lat:1.35,lng:103.82,risk:1,badge:"SEGURO",color:"#1d9e75",
+    districts:[{nm:"Toda la ciudad-estado",x:80,y:70,w:400,h:310,risk:1,type:"s",note:"Pena capital para muchos delitos. Criminalidad prácticamente nula.",threats:["Regulaciones estrictas"]}],
+    hospital:"SGH +65 6222 3322",embajada:"Todos los países tienen embajada",aeropuerto:"Changi: el mejor del mundo",evacuacion:"No necesario."},
+  baghdad:{name:"Bagdad",country:"Iraq",countryId:"368",lat:33.34,lng:44.40,risk:8,badge:"CRÍTICO",color:"#791f1f",
+    districts:[{nm:"Zona Verde / Embajadas",x:155,y:195,w:125,h:85,risk:7,type:"h",note:"Zona internacional. Ataques iraníes en bases EEUU.",threats:["Misiles iraníes"]},{nm:"Sadr City",x:335,y:155,w:130,h:85,risk:9,type:"c",note:"Milicias pro-Irán.",threats:["Milicias"]},{nm:"Aeropuerto BIAP",x:95,y:255,w:130,h:75,risk:8,type:"c",note:"Operaciones reducidas.",threats:["Ataques misiles"]}],
+    hospital:"Baghdad Medical City +964 1 778 0000",embajada:"EEUU zona verde +964 770 443 1000",aeropuerto:"BIAP: verificar operatividad",evacuacion:"Contactar embajada zona verde."},
+};
+
+const EMPLOYEES = [
+  {nm:"Ana García",  ini:"AG",cityId:"cdmx",      risk:"warn",  fg:"#ef9f27",bg:"#fac77525"},
+  {nm:"John Smith",  ini:"JS",cityId:"dubai",     risk:"warn",  fg:"#ef9f27",bg:"#fac77525"},
+  {nm:"Li Wei",      ini:"LW",cityId:"singapore", risk:"safe",  fg:"#1d9e75",bg:"#1d9e7520"},
+  {nm:"Sara Ahmed",  ini:"SA",cityId:"nairobi",   risk:"warn",  fg:"#ef9f27",bg:"#fac77525"},
+  {nm:"Mark Taylor", ini:"MT",cityId:"kyiv",      risk:"danger",fg:"#e24b4a",bg:"#e24b4a20"},
+  {nm:"Priya Nair",  ini:"PN",cityId:"london",    risk:"safe",  fg:"#1d9e75",bg:"#1d9e7520"},
+  {nm:"Carlos Ruiz", ini:"CR",cityId:"cdmx",      risk:"warn",  fg:"#ef9f27",bg:"#fac77525"},
+  {nm:"Aisha Diop",  ini:"AD",cityId:"nairobi",   risk:"safe",  fg:"#1d9e75",bg:"#1d9e7520"},
+];
+
+const TYPE_MAP={w:{label:"ZONA DE GUERRA",cls:"tw"},c:{label:"CRÍTICO",cls:"tc"},h:{label:"ALTO",cls:"th"},m:{label:"MEDIO",cls:"tm"},l:{label:"BAJO",cls:"tl"},s:{label:"SEGURO",cls:"ts"}};
+const DCOLOR={w:"#501313",c:"#e24b4a",h:"#ef9f27",m:"#fac775",l:"#97c459",s:"#1d9e75"};
+let currentLayer="total", worldData=null, viewState="world";
+
+function scoreToFill(s){
+  if(s>=10) return "#501313"; if(s>=9) return "#791f1f"; if(s>=7) return "#e24b4a";
+  if(s>=5) return "#ef9f27";  if(s>=3) return "#c0dd97"; return "#1d9e75";
+}
+function cScore(d,l){return{total:d.t,conflict:d.cf,crime:d.cr,terror:d.te,humanitarian:d.hu}[l]||d.t;}
+
+function openDP(html){document.getElementById("dp").classList.add("open");document.getElementById("dp-content").innerHTML=html;}
+function closeDP(){document.getElementById("dp").classList.remove("open");}
+
+function buildScoreBars(d){
+  return [["Conflicto",d.cf],["Crimen",d.cr],["Terror",d.te],["Humanitaria",d.hu]].map(([l,v])=>
+    `<div class="sbar"><span class="sbar-l">${l}</span><div class="sbar-bg"><div class="sbar-f" style="width:${v*10}%;background:${scoreToFill(v)}"></div></div><span class="sbar-v">${v}</span></div>`).join('');
+}
+
+function showDistrictPanel(dist,city){
+  const empsHere=EMPLOYEES.filter(e=>e.cityId===city.id);
+  const tm=TYPE_MAP[dist.type]||{label:"MEDIO",cls:"tm"};
+  openDP(`<button class="dp-close" onclick="closeDP()">×</button>
+    <div class="dp-title">${dist.nm}</div>
+    <div class="dp-sub">${city.name} · ${city.country}</div>
+    <span class="tag ${tm.cls}">${tm.label}</span> <span style="font-size:11px;color:#6b7280">Riesgo ${dist.risk}/10</span>
+    <div class="dpsec"><div class="dpsl">Situación</div><div class="dpl" style="line-height:1.5">${dist.note}</div></div>
+    <div class="dpsec"><div class="dpsl">Amenazas</div>${dist.threats.map(t=>`<span class="tag th">${t}</span>`).join('')}</div>
+    ${empsHere.length?`<div class="dpsec"><div class="dpsl">Empleados en ${city.name}</div>${empsHere.map(e=>`<div class="dpl" style="color:${e.fg};font-weight:500">${e.nm}</div>`).join('')}</div>`:''}
+    <div class="dpsec">
+      <div class="dpsl">Recursos emergencia</div>
+      <div class="dpl"><b>Hospital:</b> ${city.hospital}</div>
+      <div class="dpl"><b>Embajada:</b> ${city.embajada}</div>
+      <div class="dpl"><b>Aeropuerto:</b> ${city.aeropuerto}</div>
+      <div class="dpl" style="margin-top:4px;padding:5px 7px;background:${city.risk>=8?'#fcebeb':'#f5f5f4'};border-radius:5px;font-size:10px"><b>Evacuación:</b> ${city.evacuacion}</div>
+    </div>`);
+}
+
+function openCity(id){
+  const city=CITIES_DB[id]; if(!city) return;
+  viewState="city";
+  const cr=document.getElementById("crumb"); cr.classList.add("show");
+  document.getElementById("crumb-city").textContent=city.name; document.getElementById("crumb-city").style.display="inline";
+  document.getElementById("crumb-sep").style.display="inline";
+  drawCityView(city); closeDP();
+}
+function goWorld(){
+  viewState="world";
+  document.getElementById("crumb").classList.remove("show");
+  document.getElementById("crumb-city").style.display="none"; document.getElementById("crumb-sep").style.display="none";
+  if(worldData) drawWorldMap(worldData); closeDP();
+}
+
+function drawCityView(city){
+  const wrap=document.getElementById("mwrap"), W=wrap.clientWidth||640, H=wrap.clientHeight||480;
+  const svg=d3.select("#wsvg").attr("viewBox",`0 0 ${W} ${H}`); svg.selectAll("*").remove();
+  svg.append("rect").attr("width",W).attr("height",H).attr("fill","#e8f4fd").attr("opacity",.4);
+  svg.append("rect").attr("width",W).attr("height",H).attr("fill","var(--bg-secondary)").attr("opacity",.6);
+  const scaleX=W/560, scaleY=H/430, g=svg.append("g");
+  const tt=document.getElementById("tt");
+  city.districts.forEach(d=>{
+    const rx=d.x*scaleX,ry=d.y*scaleY,rw=d.w*scaleX,rh=d.h*scaleY;
+    const grp=g.append("g").style("cursor","pointer");
+    grp.append("rect").attr("x",rx).attr("y",ry).attr("width",rw).attr("height",rh).attr("rx",5)
+      .attr("fill",DCOLOR[d.type]||"#888").attr("opacity",.82).attr("stroke","#fff").attr("stroke-width",1.2);
+    const fSize=Math.min(12,Math.max(8,rw/9));
+    const words=d.nm.split(" "); const half=Math.ceil(words.length/2);
+    const l1=words.slice(0,half).join(" "); const l2=words.slice(half).join(" ");
+    grp.append("text").attr("x",rx+rw/2).attr("y",ry+rh/2+(l2?-7:0)).attr("text-anchor","middle")
+      .attr("dominant-baseline","middle").attr("fill","#fff").attr("font-size",fSize).attr("font-weight","600")
+      .attr("pointer-events","none").text(l1);
+    if(l2) grp.append("text").attr("x",rx+rw/2).attr("y",ry+rh/2+fSize+1).attr("text-anchor","middle")
+      .attr("dominant-baseline","middle").attr("fill","#ffffffaa").attr("font-size",Math.max(7,fSize-1))
+      .attr("pointer-events","none").text(l2);
+    grp.append("text").attr("x",rx+rw/2).attr("y",ry+rh-7).attr("text-anchor","middle")
+      .attr("fill","#ffffff88").attr("font-size",9).attr("pointer-events","none").text(`${d.risk}/10`);
+    grp.on("mousemove",(evt)=>{
+      const mr=wrap.getBoundingClientRect(),sr=svg.node().getBoundingClientRect();
+      const [mx,my]=d3.pointer(evt,svg.node()); const sx=sr.width/W,sy=sr.height/H;
+      let tx=mx*sx+sr.left-mr.left+12,ty=my*sy+sr.top-mr.top-10;
+      if(tx+210>mr.width) tx=tx-220;
+      const tm2=TYPE_MAP[d.type]||{label:"MEDIO",cls:"tm"};
+      tt.innerHTML=`<div class="tth">${d.nm}</div><div class="ttr"><span>Nivel</span><span class="ttv"><span class="tag ${tm2.cls}">${tm2.label}</span></span></div><div class="ttr"><span>Riesgo</span><span class="ttv">${d.risk}/10</span></div><div style="font-size:10px;color:#9ca3af;margin-top:4px">Clic → detalles completos</div>`;
+      tt.style.display="block"; tt.style.left=tx+"px"; tt.style.top=ty+"px";
+    }).on("mouseleave",()=>tt.style.display="none")
+      .on("click",function(){g.selectAll("rect").attr("stroke-width",1.2); d3.select(this).select("rect").attr("stroke-width",3); showDistrictPanel(d,city);});
+  });
+  const empsHere=EMPLOYEES.filter(e=>e.cityId===city.id);
+  if(empsHere.length){
+    const leg=svg.append("g").attr("transform",`translate(10,${H-22})`);
+    leg.append("rect").attr("width",empsHere.length*95+10).attr("height",18).attr("rx",4).attr("fill","white").attr("opacity",.9);
+    empsHere.forEach((e,i)=>{leg.append("circle").attr("cx",14+i*95).attr("cy",9).attr("r",5).attr("fill",e.fg);
+      leg.append("text").attr("x",22+i*95).attr("y",13).attr("fill",e.fg).attr("font-size",9).attr("font-weight","600").text(e.nm.split(" ")[0]);});
+  }
+  const types=[["w","Guerra"],["c","Crítico"],["h","Alto"],["m","Medio"],["l","Bajo"],["s","Seguro"]];
+  const distLeg=svg.append("g").attr("transform","translate(10,10)");
+  types.forEach(([t,l],i)=>{
+    const gg=distLeg.append("g").attr("transform",`translate(${i*82},0)`);
+    gg.append("rect").attr("width",10).attr("height",10).attr("rx",2).attr("fill",DCOLOR[t]);
+    gg.append("text").attr("x",13).attr("y",9).attr("fill","#6b7280").attr("font-size",9).text(l);});
+}
+
+function drawWorldMap(world){
+  const wrap=document.getElementById("mwrap"), W=wrap.clientWidth||640, H=wrap.clientHeight||480;
+  const svg=d3.select("#wsvg").attr("viewBox",`0 0 ${W} ${H}`); svg.selectAll("*").remove();
+  svg.append("rect").attr("width",W).attr("height",H).attr("fill","#e8f4fd").attr("opacity",.5);
+  svg.append("rect").attr("width",W).attr("height",H).attr("fill","var(--bg-secondary)").attr("opacity",.5);
+  const proj=d3.geoNaturalEarth1().scale(W/6.1).translate([W/2,H/2.05]);
+  const path=d3.geoPath(proj);
+  const countries=topojson.feature(world,world.objects.countries);
+  const tt=document.getElementById("tt");
+  svg.append("g").selectAll("path").data(countries.features).join("path").attr("d",path)
+    .attr("fill",d=>{
+      if(currentLayer==="employees"){const emp=EMPLOYEES.find(e=>{const c=CITIES_DB[e.cityId];return c&&c.countryId===String(d.id);});if(emp) return emp.risk==="danger"?"#e24b4a":emp.risk==="warn"?"#fac775":"#1d9e75"; return "#e8e6e0";}
+      const cd=CDATA[String(d.id)]; return cd?scoreToFill(cScore(cd,currentLayer)):"#d3d1c7";})
+    .attr("stroke","#fff").attr("stroke-width",.4).style("cursor","pointer")
+    .on("mousemove",(evt,d)=>{
+      const cd=CDATA[String(d.id)]; if(!cd){tt.style.display="none";return;}
+      const mr=wrap.getBoundingClientRect(),sr=svg.node().getBoundingClientRect();
+      const [mx,my]=d3.pointer(evt,svg.node()); const sx=sr.width/W,sy=sr.height/H;
+      let tx=mx*sx+sr.left-mr.left+12,ty=my*sy+sr.top-mr.top-10; if(tx+210>mr.width) tx=tx-218;
+      const cityList=(cd.cities||[]).map(cid=>{const c=CITIES_DB[cid];return c?c.name:null;}).filter(Boolean);
+      tt.innerHTML=`<div class="tth">${cd.n}</div><div class="ttr"><span>General</span><span class="ttv">${cd.t}/10</span></div><div class="ttr"><span>Conflicto</span><span class="ttv">${cd.cf}/10</span></div><div class="ttr"><span>Crimen</span><span class="ttv">${cd.cr}/10</span></div><div class="ttr"><span>Terror</span><span class="ttv">${cd.te}/10</span></div><div class="ttr"><span>Asesoría</span><span class="ttv" style="font-size:9px">${cd.adv}</span></div>${cityList.length?`<div style="margin-top:4px;font-size:10px;color:#185fa5">Ciudades: ${cityList.join(", ")}</div>`:''}<div style="margin-top:3px;font-size:9px;color:#9ca3af">Clic → ciudades disponibles</div>`;
+      tt.style.display="block"; tt.style.left=tx+"px"; tt.style.top=ty+"px";})
+    .on("mouseleave",()=>tt.style.display="none")
+    .on("click",(evt,d)=>{
+      tt.style.display="none"; const cd=CDATA[String(d.id)]; if(!cd) return;
+      const cities=cd.cities||[];
+      if(cities.length===1){openCity(cities[0]);return;}
+      if(cities.length>1){
+        openDP(`<button class="dp-close" onclick="closeDP()">×</button><div class="dp-title">${cd.n}</div><div class="dp-sub">Selecciona ciudad</div>${buildScoreBars(cd)}<div class="dpsec"><div class="dpsl">Ciudades</div>${cities.map(cid=>{const c=CITIES_DB[cid];return c?`<div style="margin-bottom:5px"><span class="city-chip" onclick="openCity('${cid}')">${c.name} — <b style="color:${c.color}">${c.badge} · ${c.risk}/10</b></span></div>`:''}).join('')}</div><div class="dpsec"><div class="dpsl">Empleados</div>${EMPLOYEES.filter(e=>{const c=CITIES_DB[e.cityId];return c&&c.countryId===String(d.id);}).map(e=>`<div class="dpl" style="color:${e.fg};font-weight:500">${e.nm}</div>`).join('')||'<div class="dpl" style="color:#9ca3af">Ninguno</div>'}</div>`);
+      } else {
+        openDP(`<button class="dp-close" onclick="closeDP()">×</button><div class="dp-title">${cd.n}</div><div class="dp-sub">${cd.adv}</div>${buildScoreBars(cd)}<div class="dpsec"><div class="dpsl">Sin ciudades mapeadas aún</div><div class="dpl" style="color:#9ca3af">Próximamente</div></div>`);
+      }});
+  Object.values(CITIES_DB).forEach(city=>{
+    const [cx,cy]=proj([city.lng,city.lat]); if(!cx||!cy) return;
+    const emps=EMPLOYEES.filter(e=>e.cityId===city.id), r=Math.max(5,city.risk*1.9);
+    const g=svg.append("g").style("cursor","pointer");
+    g.append("circle").attr("cx",cx).attr("cy",cy).attr("r",r+4).attr("fill",city.color).attr("opacity",.15);
+    g.append("circle").attr("cx",cx).attr("cy",cy).attr("r",r).attr("fill",city.color).attr("opacity",.85).attr("stroke","#fff").attr("stroke-width",1);
+    if(emps.length){g.append("circle").attr("cx",cx+r-1).attr("cy",cy-r+1).attr("r",6).attr("fill","#1d9e75").attr("stroke","#fff").attr("stroke-width",1.2);g.append("text").attr("x",cx+r-1).attr("y",cy-r+5).attr("text-anchor","middle").attr("fill","#fff").attr("font-size",7).attr("font-weight","700").attr("pointer-events","none").text(emps.length);}
+    if(city.risk>=6) g.append("text").attr("x",cx).attr("y",cy+r+12).attr("text-anchor","middle").attr("fill",city.color).attr("font-size",9).attr("font-weight","600").attr("pointer-events","none").text(city.name);
+    g.on("mousemove",(evt)=>{
+      const mr=wrap.getBoundingClientRect(),sr=svg.node().getBoundingClientRect();
+      const [mx,my]=d3.pointer(evt,svg.node()); const sx=sr.width/W,sy=sr.height/H;
+      let tx=mx*sx+sr.left-mr.left+14,ty=my*sy+sr.top-mr.top-10; if(tx+210>mr.width) tx=tx-220;
+      tt.innerHTML=`<div class="tth">${city.name} · ${city.country}</div><div class="ttr"><span>Riesgo</span><span class="ttv" style="color:${city.color}">${city.risk}/10 — ${city.badge}</span></div><div class="ttr"><span>Barrios mapeados</span><span class="ttv">${city.districts.length}</span></div>${emps.length?`<div style="margin-top:4px;font-size:10px;color:#1d9e75">${emps.map(e=>e.nm).join(", ")}</div>`:''}<div style="margin-top:3px;font-size:9px;color:#9ca3af">Clic → mapa de barrios</div>`;
+      tt.style.display="block"; tt.style.left=tx+"px"; tt.style.top=ty+"px";})
+      .on("mouseleave",()=>tt.style.display="none").on("click",()=>{tt.style.display="none";openCity(city.id);});
+  });
+}
+
+// ─── SIDEBAR CONTROLS ───
+document.querySelectorAll(".lbtn[data-l]").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".lbtn[data-l]").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  currentLayer=b.dataset.l; if(viewState==="world"&&worldData) drawWorldMap(worldData);}));
+document.querySelectorAll(".stab").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".stab").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  ["alerts","emp","sos"].forEach(p=>document.getElementById("pnl-"+p).style.display="none");
+  document.getElementById("pnl-"+b.dataset.st).style.display="block";
+  if(b.dataset.st==="emp") buildEmpList("all");}));
+document.getElementById("pnl-emp").addEventListener("click",e=>{
+  const b=e.target.closest(".lbtn[data-ef]"); if(!b) return;
+  document.querySelectorAll(".lbtn[data-ef]").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  buildEmpList(b.dataset.ef);});
+
+function buildEmpList(filter){
+  let emps=EMPLOYEES;
+  if(filter==="danger") emps=emps.filter(e=>e.risk==="danger");
+  if(filter==="warn") emps=emps.filter(e=>e.risk==="warn");
+  if(filter==="safe") emps=emps.filter(e=>e.risk==="safe");
+  const st={danger:"ZONA DE GUERRA — EVACUAR YA",warn:"En zona de precaución",safe:"Seguro — check-in al día"};
+  document.getElementById("emp-body").innerHTML=emps.map(e=>{const c=CITIES_DB[e.cityId];
+    return `<div class="erow" onclick="openCity('${e.cityId}')"><div class="eav" style="background:${e.bg};color:${e.fg}">${e.ini}</div><div class="ei"><div class="en">${e.nm}</div><div class="el">${c?c.name:""}</div><div class="est" style="color:${e.fg}">${st[e.risk]||""}</div></div><div style="width:7px;height:7px;border-radius:50%;background:${e.fg};flex-shrink:0"></div></div>`;}).join('');
+}
+
+// ─── SEARCH ───
+const sinput=document.getElementById("sinput"), sr2=document.getElementById("sr");
+sinput.addEventListener("input",()=>{
+  const q=sinput.value.toLowerCase().trim(); if(!q){sr2.style.display="none";return;}
+  const hits=[...Object.values(CITIES_DB).filter(c=>c.name.toLowerCase().includes(q)||c.country.toLowerCase().includes(q)).map(c=>({type:"city",label:`${c.name} — ${c.country}`,id:c.id,color:c.color,score:c.risk})),...Object.values(CDATA).filter(d=>d.n.toLowerCase().includes(q)).map(d=>({type:"country",label:d.n,color:scoreToFill(d.t),score:d.t,id:Object.keys(CDATA).find(k=>CDATA[k]===d)}))].slice(0,8);
+  if(!hits.length){sr2.style.display="none";return;}
+  sr2.style.display="block";
+  sr2.innerHTML=hits.map(h=>`<div class="sri" onclick="${h.type==='city'?`openCity('${h.id}')`:''};sr2.style.display='none';sinput.value=''"><span style="color:${h.color};font-weight:600">${h.label}</span> <span style="color:#9ca3af;font-size:9px">${h.score}/10</span></div>`).join('');});
+document.addEventListener("click",e=>{if(!e.target.closest("#sb-search")) sr2.style.display="none";});
+
+// ─── MAIN TABS ───
+document.querySelectorAll(".mtab").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".mtab").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  document.getElementById("panel-map").style.display="none";
+  document.getElementById("panel-travel").style.display="none";
+  document.getElementById("panel-tracker").style.display="none";
+  if(b.dataset.mt==="map") document.getElementById("panel-map").style.display="flex";
+  if(b.dataset.mt==="travel") document.getElementById("panel-travel").style.display="block";
+  if(b.dataset.mt==="tracker"){document.getElementById("panel-tracker").style.display="block"; buildTrackerGrid();}
+}));
+
+// ─── RISK SELECT ───
+document.getElementById("rs-exp").addEventListener("click",e=>{
+  const o=e.target.closest(".risk-opt"); if(!o) return;
+  document.querySelectorAll("#rs-exp .risk-opt").forEach(x=>x.classList.remove("sel")); o.classList.add("sel");});
+
+// ─── BRIEFING GENERATOR ───
+const CITY_BRIEFINGS = {
+  "París":       {risk:3,country:"Francia",adv:"Normal",color:"#97c459",badge:"BAJO",zonas_peligro:["Saint-Denis (norte)","Stalingrad/19° nocturno","Barbès-Rochechouart (noche)"],zonas_seguras:["1°-6° arrondissements","7° con precaución","8° Champs-Élysées de día"],hospital:"SAMU: 15 | Hôpital Saint-Louis: +33 1 42 49 49 49",embajada:"Embajada MX: +33 1 42 86 56 20",aeropuerto:"CDG (Charles de Gaulle) y Orly — operativos",emergencia:"Policía: 17 | Bomberos: 18 | SAMU: 15",tips:["Usa Uber o G7 taxis oficiales, no taxis de calle","Guarda el pasaporte en la caja fuerte del hotel","Protestas anti-EEUU activas en abril 2026 — evitar rutas de manifestaciones","Línea 1 del metro: mayor incidencia de carteristas","Tarjeta de crédito con bloqueo geográfico recomendada"],checkin_freq:"72 horas"},
+  "Dubai":       {risk:3,country:"EAU",adv:"Precaución — monitorear guerra Irán",color:"#97c459",badge:"BAJO",zonas_peligro:["Costas del Golfo (spillover potencial)"],zonas_seguras:["Downtown Burj Khalifa","Dubai Marina","DIFC","Abu Dhabi"],hospital:"Rashid Hospital: +971 4 219 2000 | American Hospital: +971 4 336 7777",embajada:"Embajada MX UAE: +971 2 414 2200 (Abu Dhabi)",aeropuerto:"DXB Dubai: operativo — monitorear cierre Estrecho de Ormuz",emergencia:"Policía: 999 | Ambulancia: 998",tips:["Monitorear impacto guerra Irán en vuelos — cierre Ormuz puede afectar","Respeta las leyes locales: alcohol solo en lugares con licencia","Vestimenta conservadora fuera de zonas hoteleras","Uber disponible y seguro","Fotografía de edificios gubernamentales o militares prohibida"],checkin_freq:"72 horas"},
+  "Kiev":        {risk:9,country:"Ucrania",adv:"NO VIAJAR — Zona de guerra activa",color:"#791f1f",badge:"GUERRA",zonas_peligro:["TODA LA CIUDAD — Misiles diarios"],zonas_seguras:["No hay zona segura"],hospital:"Okhmatdyt Children's Hospital: +380 44 234 1234 (parcialmente operativo)",embajada:"Embajadas con operaciones mínimas — llamar antes",aeropuerto:"Boryspil: solo vuelos humanitarios y militares",emergencia:"112 (puede no funcionar en zonas afectadas)",tips:["EVACUAR INMEDIATAMENTE si ya se encuentran en Kiev","Ruta de evacuación recomendada: tren nocturno a Lviv → Polonia","Bunkers marcados en metro y edificios públicos","No publicar ubicación en redes sociales","Mantener batería del teléfono cargada al máximo","Tener efectivo en hryvnia y euros"],checkin_freq:"3 horas"},
+  "Ciudad de México": {risk:5,country:"México",adv:"Alta precaución — zonas específicas",color:"#e24b4a",badge:"ALTO",zonas_peligro:["Tepito / Guerrero (no viajar)","Ecatepec (no viajar)","Doctores / Obrera (noche)","Centro Histórico (noche)"],zonas_seguras:["Polanco / Lomas","Roma / Condesa","Coyoacán","Santa Fe"],hospital:"ABC Medical Center: +52 55 5230 8000 | Cruz Roja: 800 290 0024",embajada:"Embajada EEUU: +52 55 5080 2000 | Consulado España: +52 55 5282 2974",aeropuerto:"AIFA (nuevo) — seguro | AICM — usar SOLO Uber o taxi autorizado",emergencia:"Policía: 911 | Línea de emergencias corporativa: 800 SHIELD-1",tips:["Usar ÚNICAMENTE Uber o DiDi — cero taxis de calle","No mostrar teléfonos costosos en espacios públicos","Evitar cajeros automáticos en la calle de noche","CJNG fractura post-Mencho: situación fluida, monitorear alertas","No viajar a Tepito, Ecatepec ni áreas industriales del norte","Confirmar con hotel protocolos de seguridad"],checkin_freq:"24 horas"},
+  "Guadalajara": {risk:7,country:"México",adv:"Crítico — CJNG fractura activa",color:"#e24b4a",badge:"CRÍTICO",zonas_peligro:["Periferia CJNG (no viajar)","Tonalá/Sur industrial","Carreteras periféricas noche"],zonas_seguras:["Zapopan / Estadio FIFA","Colonia Americana","Centro Histórico (día)","Chapalita"],hospital:"Hospital Civil: +52 33 3614 5501 | Hospital Country 2000: +52 33 3648 6000",embajada:"Consulado General EEUU GDL: +52 33 3268 2100",aeropuerto:"Aeropuerto Internacional GDL: operativo — confirmar ruta al hotel",emergencia:"Policía: 911",tips:["Pre-alerta activa — confirmar con seguridad corporativa antes de moverse","No viajar de noche por ningún motivo","Vehículo con escolta recomendado para cualquier reunión fuera de zona segura","FIFA 2026 comienza en junio — aumentará presencia policial","Evitar hablar de negocios en espacios públicos","Código Rojo reciente (feb 2026) — situación puede reescalar"],checkin_freq:"12 horas"},
+  "Johannesburgo": {risk:7,country:"Sudáfrica",adv:"Alta precaución — crimen extremo en zonas",color:"#e24b4a",badge:"ALTO",zonas_peligro:["Alexandra Township (no viajar)","CBD / Centro histórico (no viajar)","Cape Flats equivalente","Periferias sur"],zonas_seguras:["Sandton / Hyde Park","Rosebank / Parktown","Johannesburg North"],hospital:"Life Fourways Hospital: +27 11 875 1000 | Netcare Milpark: +27 11 480 5600",embajada:"Embajada EEUU JHB: +27 11 290 3000",aeropuerto:"O.R. Tambo Internacional: seguro — Uber OBLIGATORIO, CERO taxis oficiales en terminal",emergencia:"Policía: 10111 | Ambulancia: 10177",tips:["Uber es el único transporte seguro — nunca taxis de calle ni taxis del aeropuerto","No detenerse en semáforos en rojo de noche — cruzarlos con precaución","Carjacking es frecuente en autopistas — mantén puertas cerradas","No mostrar joyas, relojes ni teléfonos en ningún espacio público","Hospedarse exclusivamente en Sandton o Rosebank","Confirmar que el hotel tiene parking cubierto y seguridad 24h"],checkin_freq:"24 horas"},
+  "Nairobi":     {risk:5,country:"Kenia",adv:"Precaución",color:"#fac775",badge:"MEDIO",zonas_peligro:["Eastleigh (Al-Shabaab)","Kibera (no viajar)","CBD de noche"],zonas_seguras:["Westlands / Gigiri","Karen / Langata","Upperhill"],hospital:"Nairobi Hospital: +254 20 284 5000 | Aga Khan: +254 20 366 2000",embajada:"Embajada EEUU Nairobi: +254 20 363 6000",aeropuerto:"JKIA: operativo y seguro — usar transporte corporativo",emergencia:"Policía: 999 | Ambulancia: 911",tips:["Evitar Eastleigh completamente — presencia Al-Shabaab confirmada","Usar transporte corporativo o vehículo contratado con chofer","No portar efectivo visible","Vestimenta conservadora recomendada","Mosquitero y antipalúdicos según duración del viaje"],checkin_freq:"24 horas"},
+  "Singapur":    {risk:1,country:"Singapur",adv:"Normal — ciudad extremadamente segura",color:"#1d9e75",badge:"SEGURO",zonas_peligro:["Ninguna zona peligrosa"],zonas_seguras:["Toda la ciudad-estado"],hospital:"Singapore General Hospital: +65 6222 3322",embajada:"Embajada MX Singapur: +65 6235 0251",aeropuerto:"Changi: el mejor aeropuerto del mundo — completamente seguro",emergencia:"Policía: 999 | Ambulancia: 995",tips:["No mascar chicle en público (multa $500)","No fumar en espacios públicos sin zona designada","Drogas: pena de muerte — cero tolerancia","Ciudad completamente segura — comportamiento normal","Taxi, Grab o MRT son completamente seguros"],checkin_freq:"72 horas"},
+  "Londres":     {risk:2,country:"Reino Unido",adv:"Normal",color:"#1d9e75",badge:"BAJO",zonas_peligro:["Peckham/Brixton (noche)","algunas zonas sur de noche"],zonas_seguras:["City","Westminster","Mayfair","Kensington","Shoreditch"],hospital:"NHS 999 | King's College Hospital: +44 20 3299 9000",embajada:"Embajada MX Londres: +44 20 7499 8586",aeropuerto:"Heathrow y Gatwick operativos — ETA requerida desde ene 2026 (aplicar online)",emergencia:"Policía/Ambulancia/Bomberos: 999",tips:["ETA (Electronic Travel Authorisation) obligatoria desde ene 2026 — aplicar con anticipación en eta.homeoffice.gov.uk","Bases militares UK en Bahréin y Chipre atacadas por Irán — bajo impacto en Londres","Oyster card o contactless para el metro","Uber y taxis negros (Black Cab) son seguros","No fotografiar instalaciones militares"],checkin_freq:"72 horas"},
+};
+
+function generateBriefing(){
+  const dest=document.getElementById("tr-dest").value.trim();
+  const emp=document.getElementById("tr-emp").value;
+  const from=document.getElementById("tr-from").value;
+  const to=document.getElementById("tr-to").value;
+  const purpose=document.getElementById("tr-purpose").value;
+  if(!dest||!from||!to){alert("Por favor completa destino y fechas.");return;}
+
+  const cityKey=Object.keys(CITY_BRIEFINGS).find(k=>dest.toLowerCase().includes(k.toLowerCase()));
+  const b=cityKey?CITY_BRIEFINGS[cityKey]:null;
+
+  const box=document.getElementById("briefing-result"); box.classList.add("show");
+  document.getElementById("briefing-title").innerHTML=`Briefing de seguridad — ${emp} → ${dest}`;
+
+  const riskLabel=b?`<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:16px;background:${b.color}20;color:${b.color};border:0.5px solid ${b.color}60">${b.badge} · Riesgo ${b.risk}/10</span>`:
+    `<span style="font-size:12px;color:#6b7280">Ciudad no mapeada — usar criterio general</span>`;
+
+  document.getElementById("briefing-content").innerHTML=b?`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:0.5px solid var(--border)">
+      ${riskLabel}
+      <span style="font-size:11px;color:#6b7280">${emp} · ${from} → ${to} · ${purpose}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="briefing-section">
+        <h4>Zonas a evitar</h4>
+        <ul>${b.zonas_peligro.map(z=>`<li style="color:#791f1f">${z}</li>`).join('')}</ul>
+      </div>
+      <div class="briefing-section">
+        <h4>Zonas recomendadas</h4>
+        <ul>${b.zonas_seguras.map(z=>`<li style="color:#3b6d11">${z}</li>`).join('')}</ul>
+      </div>
+      <div class="briefing-section">
+        <h4>Emergencias</h4>
+        <p><b>Hospital:</b> ${b.hospital}</p>
+        <p><b>Embajada:</b> ${b.embajada}</p>
+        <p><b>Aeropuerto:</b> ${b.aeropuerto}</p>
+        <p><b>Emergencia:</b> ${b.emergencia}</p>
+      </div>
+      <div class="briefing-section">
+        <h4>Recomendaciones clave</h4>
+        <ul>${b.tips.map(t=>`<li>${t}</li>`).join('')}</ul>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:10px;background:${b.risk>=8?'#fcebeb':b.risk>=5?'#faeeda':'#eaf3de'};border-radius:8px;font-size:11px">
+      <b>Check-in automático configurado:</b> cada ${b.checkin_freq} — si no responde se activa protocolo de búsqueda
+    </div>`:`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">${riskLabel}</div>
+    <div class="briefing-section"><h4>Ciudad no encontrada en base de datos</h4><p>Destino: <b>${dest}</b> · ${emp} · ${from} → ${to}</p><p style="margin-top:6px">Recomendaciones generales aplicables: usar transporte corporativo, registrarse en embajada local, configurar check-in cada 24h, mantener contacto de emergencia activo.</p></div>
+    <div style="margin-top:12px;padding:10px;background:#faeeda;border-radius:8px;font-size:11px"><b>Check-in configurado:</b> cada 24 horas (estándar para destinos sin datos específicos)</div>`;
+}
+
+function exportBriefingPDF(){
+  const content=document.getElementById("briefing-content").innerHTML;
+  const title=document.getElementById("briefing-title").textContent;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:20px;max-width:800px;margin:0 auto;color:#1a1a1a}h1{font-size:18px;border-bottom:2px solid #1a1a1a;padding-bottom:8px}h4{font-size:11px;text-transform:uppercase;color:#6b7280;margin:12px 0 4px}ul{padding-left:16px}li{font-size:12px;line-height:1.7}p{font-size:12px;line-height:1.6;margin:2px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media print{body{padding:10px}}</style></head><body><h1>TravelShield Intel — ${title}</h1><p style="color:#6b7280;font-size:10px">Generado: ${new Date().toLocaleString('es-MX')} · Fuentes: ACLED · ICG · CFR · Al Jazeera · Reuters</p>${content}</body></html>`);
+  w.document.close(); setTimeout(()=>w.print(),500);
+}
+
+// ─── TRACKER GRID ───
+const CHECKIN_HISTORY=[
+  {emp:"Li Wei",loc:"Singapur",time:"hace 2h",status:"safe",msg:"Check-in confirmado — todo normal"},
+  {emp:"Priya Nair",loc:"Londres",time:"hace 3h",status:"safe",msg:"Reunión completada. Vuelo mañana."},
+  {emp:"Aisha Diop",loc:"Nairobi",time:"hace 4h",status:"safe",msg:"Hotel Westlands. Sin incidentes."},
+  {emp:"Ana García",loc:"CDMX",time:"hace 5h",status:"warn",msg:"Zona Rosa ok. Evitando Tepito."},
+  {emp:"John Smith",loc:"Dubái",time:"hace 6h",status:"warn",msg:"Dubai ok. Monitoreando vuelos Ormuz."},
+  {emp:"Carlos Ruiz",loc:"CDMX",time:"hace 8h",status:"warn",msg:"Reunión Polanco. Sin incidentes."},
+  {emp:"Sara Ahmed",loc:"Nairobi",time:"hace 9h",status:"safe",msg:"Nairobi Gigiri. Ok."},
+  {emp:"Mark Taylor",loc:"Kiev",time:"hace 14h",status:"danger",msg:"⚠ ÚLTIMO CONTACTO — 14h sin respuesta. PROTOCOLO ACTIVO"},
+];
+
+function buildTrackerGrid(){
+  const statusLabel={safe:"Seguro",warn:"Precaución",danger:"PELIGRO"};
+  const statusColor={safe:"#3b6d11",warn:"#633806",danger:"#791f1f"};
+  const statusBg={safe:"#eaf3de",warn:"#faeeda",danger:"#fcebeb"};
+  document.getElementById("emp-tracker-grid").innerHTML=EMPLOYEES.map(e=>{
+    const c=CITIES_DB[e.cityId];
+    return `<div class="emp-card" style="border-color:${e.fg}40">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:32px;height:32px;border-radius:50%;background:${e.bg};color:${e.fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${e.ini}</div>
+        <div><div class="emp-card-name">${e.nm}</div><div class="emp-card-loc">${c?c.name:""}</div></div>
+      </div>
+      <div class="emp-card-status" style="background:${statusBg[e.risk]};color:${statusColor[e.risk]};padding:3px 8px;border-radius:6px;font-size:10px;font-weight:500">${statusLabel[e.risk]}</div>
+      <button class="checkin-btn checkin-safe" onclick="alert('Check-in de seguridad enviado a ${e.nm}')">Solicitar check-in</button>
+      ${e.risk==='danger'?`<button class="checkin-btn checkin-sos" onclick="alert('PROTOCOLO DE EVACUACIÓN activado para ${e.nm} en ${c?c.name:''}')" style="margin-top:4px">🚨 Activar evacuación</button>`:''}
+    </div>`;}).join('');
+  document.getElementById("checkin-history").innerHTML=CHECKIN_HISTORY.map(h=>{
+    const dc={safe:"#1d9e75",warn:"#ef9f27",danger:"#e24b4a"}[h.status];
+    return `<div class="checkin-row"><div class="checkin-dot" style="background:${dc}"></div><div class="checkin-info"><b>${h.emp}</b> · ${h.loc} — ${h.msg}</div><div class="checkin-time">${h.time}</div></div>`;}).join('');
+}
+
+// ─── INIT ───
+buildEmpList("all");
+d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(world=>{worldData=world;drawWorldMap(world);});
+</script>
+</body>
+</html>
